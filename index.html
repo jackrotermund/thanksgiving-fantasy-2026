@@ -38,9 +38,9 @@ h1{font-size:22px;margin:6px 0 2px}h1 span{color:var(--acc)}.sub{color:var(--mut
 <h3>Scoring rules (Full PPR)</h3>
 <ul><li>1 pt per reception</li><li>0.1 pt per rushing yard and receiving yard</li><li>6 pts per rushing or receiving TD</li><li>0.04 pt per passing yard (1 per 25), 4 pts per passing TD</li><li>-2 per interception thrown, -2 per fumble lost</li><li>2 pts per 2 point conversion (passer, rusher or receiver)</li></ul>
 <h3>Kicker</h3>
-<ul><li>FG 0 to 39 yds: 3, 40 to 49: 4, 50+: 5</li><li>PAT made: 1</li><li>Missed FG: -1, missed PAT: -1</li></ul>
+<ul><li>Kicker: ESPN standard</li><li>FG 0 to 39 yds: 3, 40 to 49: 4, 50 to 59: 5, 60+: 6</li><li>PAT made: 1</li><li>Missed FG (any distance): -1. Missed PATs are not penalized.</li></ul>
 <h3>Team defense / special teams</h3>
-<ul><li>Sack 1, interception 2, fumble recovery 2, safety 2, blocked kick 2</li><li>Defensive or special teams TD: 6</li><li>Points allowed (total opponent score): 0 = 10, 1 to 6 = 7, 7 to 13 = 4, 14 to 20 = 1, 21 to 27 = 0, 28 to 34 = -1, 35+ = -4 (applies live once the game kicks off)</li></ul>
+<ul><li>Defense: ESPN standard</li><li>Sack 1, interception 2, fumble recovery 2, safety 2, blocked punt, PAT or FG 2</li><li>Interception, fumble, kickoff, punt or blocked kick return TD: 6</li><li>PAT or 2 point try returned for 2: 2, safety on a PAT try: 1</li><li>Points allowed: 0 = 5, 1 to 6 = 4, 7 to 13 = 3, 14 to 17 = 1, 18 to 27 = 0, 28 to 34 = -1, 35 to 45 = -3, 46+ = -5. Pick 6 and fumble return TDs scored against your offense do not count; return TDs your special teams allow do.</li><li>Total yards allowed: under 100 = 5, 100 to 199 = 3, 200 to 299 = 2, 300 to 349 = 0, 350 to 399 = -1, 400 to 449 = -3, 450 to 499 = -5, 500 to 549 = -6, 550+ = -7</li><li>Like ESPN, a defense starts a game at 10 (5 for 0 points and 5 for 0 yards allowed) and moves from there.</li></ul>
 <h3>Lineup</h3><ul><li>QB, RB, 2 WR, TE, FLEX, DST, K. All 8 drafted players count.</li></ul>
 <div style="color:var(--mut);font-size:12px">Live stats from ESPN, refreshed every 60 seconds. Stat corrections by ESPN may shift totals slightly.</div>
 </div></div>
@@ -60,7 +60,8 @@ const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
 const r1=x=>Math.round(x*100)/100;
 const open=new Set(JSON.parse(localStorage.getItem("tgOpen")||'["Rut"]'));
 
-function paPts(pa){if(pa==0)return 10;if(pa<=6)return 7;if(pa<=13)return 4;if(pa<=20)return 1;if(pa<=27)return 0;if(pa<=34)return -1;return -4}
+function paPts(pa){if(pa<=0)return 5;if(pa<=6)return 4;if(pa<=13)return 3;if(pa<=17)return 1;if(pa<=27)return 0;if(pa<=34)return -1;if(pa<=45)return -3;return -5}
+function yaPts(y){if(y<100)return 5;if(y<=199)return 3;if(y<=299)return 2;if(y<=349)return 0;if(y<=399)return -1;if(y<=449)return -3;if(y<=499)return -5;if(y<=549)return -6;return -7}
 
 function parseGame(ev,sum){
   const comp=ev.competitions[0];const st=comp.status.type;
@@ -98,11 +99,19 @@ function parseGame(ev,sum){
       Object.values(g.players).forEach(P=>{if(P.team!==p.team.abbreviation)return;const last=norm(P.name).split(" ").slice(-1)[0];const full=norm(P.name);if(seg.includes(full)||(last.length>3&&new RegExp("\\b"+last+"\\b").test(seg)&&(P.s.att||P.s.car||P.s.rec)))P.s.twoPt=(P.s.twoPt||0)+1;});
     }
   });
+  const tyds={};((sum.boxscore&&sum.boxscore.teams)||[]).forEach(t=>{const st=(t.statistics||[]).find(x=>x.name=="totalYards");tyds[t.team.abbreviation]=st?num(st.displayValue):0;});
+  // points each team scored on defensive returns (pick 6 / fumble return TD), which ESPN does not count against the other D/ST
+  const defRet={};ab.forEach(a=>defRet[a]=0);let prevA=0,prevH=0;
+  const homeAb=g.order[1];
+  sp.forEach(p=>{const dA=p.awayScore-prevA,dH=p.homeScore-prevH;prevA=p.awayScore;prevH=p.homeScore;const T=p.team.abbreviation;const ty=(p.type.text||"")+" "+(p.text||"");
+    if(/interception return|fumble return|fumble recovery|defensive touchdown|pick six/i.test(p.type.text||"")&&!/\bown\b/i.test(p.type.text||"")&&!/punt|kickoff|blocked/i.test(ty))defRet[T]+=Math.max(0,T==homeAb?dH:dA);});
   ab.forEach(T=>{
-    const O=g.teams[T].opp;const d={sacks:teamAgg[O].sacksTaken,int:teamAgg[O].intThrown,fr:teamAgg[O].fumLost,safety:0,td:0,blk:0,pa:g.teams[O].score};
+    const O=g.teams[T].opp;const d={sacks:teamAgg[O].sacksTaken,int:teamAgg[O].intThrown,fr:teamAgg[O].fumLost,safety:0,td:0,blk:0,patSafety:0,patRet:0,pa:Math.max(0,g.teams[O].score-defRet[O]),ya:tyds[O]||0};
     sp.forEach(p=>{if(p.team.abbreviation!==T)return;const ty=p.type.text||"";
-      if(/safety/i.test(ty))d.safety++;
-      else if(/interception return|fumble return|kickoff return|punt return|blocked|defensive|fumble recovery|missed field goal return/i.test(ty)&&!/own/i.test(ty))d.td++;});
+      if(/defensive (two-point|2pt|2 pt)|pat return|defensive conversion/i.test(ty+" "+p.text))d.patRet++;
+      else if(/safety/i.test(ty)&&/(extra point|two-point|2pt|conversion|PAT)/i.test(p.text||"")&&!/\d+ Yd/i.test(p.text||""))d.patSafety++;
+      else if(/safety/i.test(ty))d.safety++;
+      else if(/interception return|fumble return|kickoff return|punt return|blocked|defensive|fumble recovery|missed field goal return/i.test(ty)&&!/\bown\b/i.test(ty))d.td++;});
     ((sum.drives&&sum.drives.previous)||[]).forEach(dr=>{if(!dr.team||dr.team.abbreviation!==O)return;(dr.plays||[]).forEach(pl=>{if(/blocked/i.test(pl.text||"")&&/punt|field goal|extra point|kick/i.test(pl.text))d.blk++;});});
     g.dst[T]=d;
   });
@@ -116,13 +125,13 @@ function scorePlayer(s){
   if(s.fumLost){pts-=s.fumLost*2;parts.push(`${s.fumLost} fum lost`);}
   if(s.twoPt){pts+=s.twoPt*2;parts.push(`${s.twoPt} 2PT`);}
   if(s.fga!=null||s.xpa!=null){
-    const d=s.fgDist||[];let fp=0;d.forEach(x=>fp+=x>=50?5:x>=40?4:3);fp+=Math.max(0,(s.fgm||0)-d.length)*3;
-    const miss=(s.fga||0)-(s.fgm||0),xmiss=(s.xpa||0)-(s.xpm||0);pts+=fp+(s.xpm||0)-miss-xmiss;
+    const d=s.fgDist||[];let fp=0;d.forEach(x=>fp+=x>=60?6:x>=50?5:x>=40?4:3);fp+=Math.max(0,(s.fgm||0)-d.length)*3;
+    const miss=(s.fga||0)-(s.fgm||0),xmiss=(s.xpa||0)-(s.xpm||0);pts+=fp+(s.xpm||0)-miss;
     parts.push(`FG ${s.fgm||0}/${s.fga||0}`+(d.length?` (${d.join(", ")})`:"")+`, XP ${s.xpm||0}/${s.xpa||0}`);}
   return {pts:r1(pts),line:parts.join(" · ")};
 }
-function scoreDST(d){const pa=paPts(d.pa);const pts=d.sacks+d.int*2+d.fr*2+d.safety*2+d.td*6+d.blk*2+pa;
-  const bits=[`${d.sacks} sack`,`${d.int} INT`,`${d.fr} FR`];if(d.td)bits.push(`${d.td} TD`);if(d.safety)bits.push(`${d.safety} SFTY`);if(d.blk)bits.push(`${d.blk} BLK`);bits.push(`${d.pa} PA (${pa>=0?"+":""}${pa})`);
+function scoreDST(d){const pa=paPts(d.pa),ya=yaPts(d.ya);const pts=d.sacks+d.int*2+d.fr*2+d.safety*2+d.td*6+d.blk*2+d.patSafety+d.patRet*2+pa+ya;
+  const bits=[`${d.sacks} sack`,`${d.int} INT`,`${d.fr} FR`];if(d.td)bits.push(`${d.td} TD`);if(d.safety)bits.push(`${d.safety} SFTY`);if(d.blk)bits.push(`${d.blk} BLK`);if(d.patSafety)bits.push(`${d.patSafety} PAT SFTY`);if(d.patRet)bits.push(`${d.patRet} 2PT RET`);bits.push(`${d.pa} PA (${pa>=0?"+":""}${pa})`);bits.push(`${d.ya} YA (${ya>=0?"+":""}${ya})`);
   return {pts:r1(pts),line:bits.join(" · ")};}
 
 function compute(games){

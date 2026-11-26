@@ -35,8 +35,8 @@ h1{font-size:22px;margin:6px 0 2px}h1 span{color:var(--acc)}.sub{color:var(--mut
 <div id="err"></div>
 <div id="stand"></div>
 <div class="rules">
-<h3>Scoring rules (Half PPR)</h3>
-<ul><li>0.5 pt per reception</li><li>0.1 pt per rushing yard and receiving yard</li><li>6 pts per rushing or receiving TD</li><li>0.04 pt per passing yard (1 per 25), 4 pts per passing TD</li><li>-2 per interception thrown, -2 per fumble lost</li><li>2 pts per 2 point conversion (passer, rusher or receiver)</li></ul>
+<h3>Scoring rules (Full PPR)</h3>
+<ul><li>1 pt per reception</li><li>0.1 pt per rushing yard and receiving yard</li><li>6 pts per rushing or receiving TD</li><li>0.04 pt per passing yard (1 per 25), 4 pts per passing TD</li><li>-2 per interception thrown, -2 per fumble lost</li><li>2 pts per 2 point conversion (passer, rusher or receiver)</li></ul>
 <h3>Kicker</h3>
 <ul><li>FG 0 to 39 yds: 3, 40 to 49: 4, 50+: 5</li><li>PAT made: 1</li><li>Missed FG: -1, missed PAT: -1</li></ul>
 <h3>Team defense / special teams</h3>
@@ -112,7 +112,7 @@ function scorePlayer(s){
   let pts=0,parts=[];
   if(s.att){pts+=s.passYd*0.04+s.passTD*4-s.int*2;parts.push(`${s.cmp}/${s.att}, ${s.passYd} pass yd`+(s.passTD?`, ${s.passTD} TD`:"")+(s.int?`, ${s.int} INT`:""));}
   if(s.car){pts+=s.rushYd*0.1+s.rushTD*6;parts.push(`${s.car} car, ${s.rushYd} yd`+(s.rushTD?`, ${s.rushTD} TD`:""));}
-  if(s.rec!=null&&(s.rec||s.recYd)){pts+=s.rec*0.5+s.recYd*0.1+s.recTD*6;parts.push(`${s.rec} rec, ${s.recYd} yd`+(s.recTD?`, ${s.recTD} TD`:""));}
+  if(s.rec!=null&&(s.rec||s.recYd)){pts+=s.rec*1+s.recYd*0.1+s.recTD*6;parts.push(`${s.rec} rec, ${s.recYd} yd`+(s.recTD?`, ${s.recTD} TD`:""));}
   if(s.fumLost){pts-=s.fumLost*2;parts.push(`${s.fumLost} fum lost`);}
   if(s.twoPt){pts+=s.twoPt*2;parts.push(`${s.twoPt} 2PT`);}
   if(s.fga!=null||s.xpa!=null){
